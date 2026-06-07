@@ -1,0 +1,23 @@
+# Virtual environments
+.venv/
+
+# Python cache and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Build artifacts
+build/
+dist/
+*.spec
+*.egg-info/
+.eggs/
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local agent/team metadata
+.atl/
