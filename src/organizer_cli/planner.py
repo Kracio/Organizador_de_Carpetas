@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .date_organization import DateMode, date_destination_parts
 from .models import PlannedMove, ScanResult
 from .rules import classify
 
 
-def build_plan(scan: ScanResult) -> tuple[PlannedMove, ...]:
+def build_plan(scan: ScanResult, *, date_mode: DateMode = DateMode.NONE) -> tuple[PlannedMove, ...]:
     """Build a complete collision-safe move plan without mutating the filesystem."""
 
     reserved_by_dir: dict[Path, set[str]] = {}
@@ -14,7 +15,8 @@ def build_plan(scan: ScanResult) -> tuple[PlannedMove, ...]:
 
     for entry in scan.files:
         classification = classify(entry)
-        destination_dir = scan.root.joinpath(*classification.destination_parts)
+        destination_parts = (*classification.destination_parts, *date_destination_parts(entry.path, date_mode))
+        destination_dir = scan.root.joinpath(*destination_parts)
         reserved = reserved_by_dir.setdefault(destination_dir, _existing_names_casefold(destination_dir))
         destination, renamed = _unique_destination(destination_dir, entry.name, reserved)
         reserved.add(destination.name.casefold())

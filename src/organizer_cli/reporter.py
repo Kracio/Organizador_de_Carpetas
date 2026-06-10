@@ -111,7 +111,7 @@ def _print_plan(plan: tuple[PlannedMove, ...], *, use_rich: bool = False) -> Non
         for move in plan:
             table.add_row(
                 move.source.name,
-                str(move.destination.relative_to(move.source.parent)),
+                move.destination.relative_to(move.source.parent).as_posix(),
                 move.category,
                 "renombrado por colisión" if move.collision_renamed else "",
             )
@@ -120,7 +120,8 @@ def _print_plan(plan: tuple[PlannedMove, ...], *, use_rich: bool = False) -> Non
 
     for move in plan:
         suffix = " (renombrado por colisión)" if move.collision_renamed else ""
-        typer.echo(f"- {move.source.name} -> {move.destination.relative_to(move.source.parent)} [{move.category}]{suffix}")
+        relative_destination = move.destination.relative_to(move.source.parent).as_posix()
+        typer.echo(f"- {move.source.name} -> {relative_destination} [{move.category}]{suffix}")
 
 
 def _print_move_result(result: MoveResult, index: int, total: int) -> None:

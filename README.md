@@ -18,6 +18,7 @@ Organizador de Carpetas resuelve ese caso con reglas simples, salida clara en te
 - Comandos CLI para preview, apply confirmado y consulta de reglas.
 - Clasificación por categorías habituales: documentos, fotos, capturas, comprimidos, multimedia, instaladores y otros.
 - Preview antes de modificar el disco.
+- Organización opcional por fecha de modificación: sin fecha, por año o por año/mes.
 - Resolución de colisiones sin sobrescribir archivos.
 - Progreso y resumen durante la organización.
 - Suite de tests automatizados con `pytest`.
@@ -92,11 +93,25 @@ Mostrar el plan sin mover archivos:
 organizer preview "C:\Users\tu-usuario\Downloads"
 ```
 
+También podés agregar carpetas por fecha de modificación sin cambiar la clasificación principal:
+
+```bash
+organizer preview "C:\Users\tu-usuario\Downloads" --date-mode year-month
+```
+
 Aplicar el plan con confirmación explícita:
 
 ```bash
 organizer apply "C:\Users\tu-usuario\Downloads" --confirm
 ```
+
+Modos de fecha disponibles:
+
+- `none` (default): mantiene destinos como `Documentos/PDF/reporte.pdf`.
+- `year`: agrega el año, por ejemplo `Documentos/PDF/2025/reporte.pdf`.
+- `year-month`: agrega año y mes, por ejemplo `Documentos/PDF/2025/06-Junio/reporte.pdf`.
+
+La fecha usada es la modificación del archivo. El menú guiado pregunta el modo antes del preview y, si organizás, aplica exactamente ese mismo plan.
 
 Ver las reglas incorporadas:
 
@@ -124,7 +139,7 @@ scanner -> rules -> planner -> reporter -> mover
 
 - `scanner`: escanea archivos directos de la carpeta objetivo e ignora subcarpetas.
 - `rules`: clasifica cada archivo con reglas determinísticas incorporadas.
-- `planner`: construye un plan de movimientos y resuelve colisiones de nombres.
+- `planner`: construye un plan de movimientos, agrega carpetas opcionales por fecha y resuelve colisiones de nombres.
 - `reporter`: muestra previews, reglas, progreso y resúmenes en terminal.
 - `mover`: ejecuta los movimientos confirmados sin sobrescribir destinos existentes.
 

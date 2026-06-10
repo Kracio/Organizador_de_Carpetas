@@ -1,3 +1,6 @@
+import os
+from datetime import datetime
+
 from typer.testing import CliRunner
 
 import organizer_cli.cli as cli
@@ -5,6 +8,11 @@ from organizer_cli.cli import app
 
 
 runner = CliRunner()
+
+
+def _set_mtime(path, year: int, month: int, day: int = 15) -> None:
+    timestamp = datetime(year, month, day, 12, 0, 0).timestamp()
+    os.utime(path, (timestamp, timestamp))
 
 
 def test_help_text() -> None:
@@ -112,7 +120,7 @@ def test_menu_apply_cancel_after_preview_does_not_mutate(monkeypatch, tmp_path) 
     monkeypatch.setattr(cli, "_default_downloads", lambda: None)
     (tmp_path / "report.pdf").write_text("pdf")
 
-    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n2\nn\n5\n")
+    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n2\n1\nn\n5\n")
 
     assert result.exit_code == 0
     assert "PREVIEW - no se modifica nada" in result.output
@@ -125,7 +133,7 @@ def test_menu_apply_confirm_shows_completion_and_can_exit(monkeypatch, tmp_path)
     monkeypatch.setattr(cli, "_default_downloads", lambda: None)
     (tmp_path / "report.pdf").write_text("pdf")
 
-    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n2\ny\n3\n")
+    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n2\n1\ny\n3\n")
 
     assert result.exit_code == 0
     assert result.output.index("PREVIEW - no se modifica nada") < result.output.index("APPLY - movimientos confirmados")
@@ -142,7 +150,7 @@ def test_menu_apply_confirm_can_continue_to_same_folder_menu(monkeypatch, tmp_pa
     monkeypatch.setattr(cli, "_default_downloads", lambda: None)
     (tmp_path / "report.pdf").write_text("pdf")
 
-    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n2\ny\n1\n5\n")
+    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n2\n1\ny\n1\n5\n")
 
     assert result.exit_code == 0
     assert "Organización completa" in result.output
@@ -156,7 +164,7 @@ def test_menu_apply_completion_invalid_choice_reprompts(monkeypatch, tmp_path) -
     monkeypatch.setattr(cli, "_default_downloads", lambda: None)
     (tmp_path / "report.pdf").write_text("pdf")
 
-    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n2\ny\nbad\n3\n")
+    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n2\n1\ny\nbad\n3\n")
 
     assert result.exit_code == 0
     assert "Organización completa" in result.output
@@ -168,7 +176,7 @@ def test_menu_preview_returns_to_actions_and_can_organize_same_folder(monkeypatc
     monkeypatch.setattr(cli, "_default_downloads", lambda: None)
     (tmp_path / "report.pdf").write_text("pdf")
 
-    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n1\n2\ny\n3\n")
+    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n1\n2\n1\ny\n3\n")
 
     assert result.exit_code == 0
     assert result.output.count("PREVIEW - no se modifica nada") == 2
@@ -206,6 +214,79 @@ def test_apply_confirm_shows_progress_and_summary(tmp_path) -> None:
     assert "Movimientos aplicados: 1" in result.output
     assert not (tmp_path / "report.pdf").exists()
     assert (tmp_path / "Documentos" / "PDF" / "report.pdf").exists()
+
+
+def test_preview_date_mode_year_month_shows_date_path_and_does_not_mutate(tmp_path) -> None:
+    report = tmp_path / "report.pdf"
+    report.write_text("pdf")
+    _set_mtime(report, 2025, 6)
+
+    result = runner.invoke(app, ["preview", str(tmp_path), "--date-mode", "year-month"])
+
+    assert result.exit_code == 0
+    assert "Documentos/PDF/2025/06-Junio/report.pdf" in result.output
+    assert report.exists()
+    assert not (tmp_path / "Documentos").exists()
+
+
+def test_apply_date_mode_year_month_without_confirm_refuses_and_does_not_mutate(tmp_path) -> None:
+    report = tmp_path / "report.pdf"
+    report.write_text("pdf")
+    _set_mtime(report, 2025, 6)
+
+    result = runner.invoke(app, ["apply", str(tmp_path), "--date-mode", "year-month"])
+
+    assert result.exit_code == 1
+    assert "--confirm" in result.output
+    assert report.exists()
+    assert not (tmp_path / "Documentos").exists()
+
+
+def test_apply_confirm_date_mode_year_moves_to_year_destination(tmp_path) -> None:
+    report = tmp_path / "report.pdf"
+    report.write_text("pdf")
+    _set_mtime(report, 2025, 6)
+
+    result = runner.invoke(app, ["apply", str(tmp_path), "--confirm", "--date-mode", "year"])
+
+    assert result.exit_code == 0
+    assert not report.exists()
+    assert (tmp_path / "Documentos" / "PDF" / "2025" / "report.pdf").exists()
+
+
+def test_menu_preview_uses_no_date_mode_and_does_not_prompt_or_mutate(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(cli, "_default_downloads", lambda: None)
+    report = tmp_path / "report.pdf"
+    report.write_text("pdf")
+    _set_mtime(report, 2025, 6)
+
+    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n1\n5\n")
+
+    assert result.exit_code == 0
+    assert "¿Cómo querés organizar por fecha?" not in result.output
+    assert "Documentos/PDF/report.pdf" in result.output
+    assert "Documentos/PDF/2025" not in result.output
+    assert "APPLY - movimientos confirmados" not in result.output
+    assert report.exists()
+    assert not (tmp_path / "Documentos").exists()
+
+
+def test_menu_organize_uses_previewed_date_mode_for_apply(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(cli, "_default_downloads", lambda: None)
+    report = tmp_path / "report.pdf"
+    report.write_text("pdf")
+    _set_mtime(report, 2025, 6)
+
+    result = runner.invoke(app, ["menu"], input=f"{tmp_path}\n2\n2\ny\n3\n")
+
+    destination = tmp_path / "Documentos" / "PDF" / "2025" / "report.pdf"
+
+    assert result.exit_code == 0
+    assert "¿Cómo querés organizar por fecha?" in result.output
+    assert "Documentos/PDF/2025/report.pdf" in result.output
+    assert result.output.index("Documentos/PDF/2025/report.pdf") < result.output.index("APPLY - movimientos confirmados")
+    assert not report.exists()
+    assert destination.exists()
 
 
 def test_apply_confirm_reports_error_and_continues(monkeypatch, tmp_path) -> None:

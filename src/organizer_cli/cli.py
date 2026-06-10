@@ -14,6 +14,7 @@ from .branding import (
     print_selected_folder,
     print_status,
 )
+from .date_organization import DateMode
 from .mover import iter_apply_plan
 from .planner import build_plan
 from .reporter import print_apply_progress, print_preview, print_rules
@@ -35,19 +36,24 @@ def main(ctx: typer.Context) -> None:
     print_brand_header("Flujo recomendado: `organizer menu`")
     typer.echo("Usá `organizer menu` para abrir el flujo guiado.")
     typer.echo("Comandos avanzados: `preview PATH`, `apply PATH --confirm`, `rules show`.")
+    typer.echo("Organización por fecha opcional: `--date-mode none|year|year-month`.")
 
 
 @app.command()
-def preview(path: Path) -> None:
+def preview(path: Path, date_mode: DateMode = typer.Option(DateMode.NONE, "--date-mode", help="Organización por fecha: none, year o year-month.")) -> None:
     """Muestra el plan para PATH sin crear carpetas ni mover archivos."""
 
     scan = scan_root(path)
-    plan = build_plan(scan)
+    plan = build_plan(scan, date_mode=date_mode)
     print_preview(scan, plan)
 
 
 @app.command()
-def apply(path: Path, confirm: bool = typer.Option(False, "--confirm", help="Confirma movimientos reales.")) -> None:
+def apply(
+    path: Path,
+    confirm: bool = typer.Option(False, "--confirm", help="Confirma movimientos reales."),
+    date_mode: DateMode = typer.Option(DateMode.NONE, "--date-mode", help="Organización por fecha: none, year o year-month."),
+) -> None:
     """Aplica el plan sólo con --confirm y muestra progreso por archivo."""
 
     if not confirm:
@@ -58,7 +64,7 @@ def apply(path: Path, confirm: bool = typer.Option(False, "--confirm", help="Con
         raise typer.Exit(code=1)
 
     scan = scan_root(path)
-    plan = build_plan(scan)
+    plan = build_plan(scan, date_mode=date_mode)
     print_apply_progress(scan, plan, iter_apply_plan(plan))
 
 
@@ -92,10 +98,11 @@ def _run_menu() -> None:
             _show_rules()
             continue
         if action == "preview":
-            _preview_path(path)
+            _preview_path(path, date_mode=DateMode.NONE)
             continue
 
-        scan, plan = _preview_path(path)
+        date_mode = _choose_date_mode()
+        scan, plan = _preview_path(path, date_mode=date_mode)
         applied = _apply_after_preview(scan, plan)
         if not applied:
             continue
@@ -146,6 +153,44 @@ def _choose_action() -> str:
             return action
 
         print_status("error", "Opción inválida. Elegí un número del menú: 1, 2, 3, 4 o 5.")
+
+
+def _choose_date_mode() -> DateMode:
+    while True:
+        typer.echo("")
+        print_action_menu(
+            "¿Cómo querés organizar por fecha?",
+            (
+                ("1", "Sin fecha (actual)", "Mantiene destinos como Documentos/PDF"),
+                ("2", "Por año", "Ejemplo: Documentos/PDF/2025"),
+                ("3", "Por año y mes", "Ejemplo: Documentos/PDF/2025/06-Junio"),
+            ),
+        )
+
+        choice = typer.prompt("Opción", default="1").strip().casefold()
+        modes = {
+            "1": DateMode.NONE,
+            "": DateMode.NONE,
+            "none": DateMode.NONE,
+            "sin fecha": DateMode.NONE,
+            "2": DateMode.YEAR,
+            "year": DateMode.YEAR,
+            "año": DateMode.YEAR,
+            "anio": DateMode.YEAR,
+            "por año": DateMode.YEAR,
+            "por anio": DateMode.YEAR,
+            "3": DateMode.YEAR_MONTH,
+            "year-month": DateMode.YEAR_MONTH,
+            "año mes": DateMode.YEAR_MONTH,
+            "anio mes": DateMode.YEAR_MONTH,
+            "por año y mes": DateMode.YEAR_MONTH,
+            "por anio y mes": DateMode.YEAR_MONTH,
+        }
+        mode = modes.get(choice)
+        if mode is not None:
+            return mode
+
+        print_status("error", "Opción inválida. Elegí 1, 2 o 3.")
 
 
 def _default_downloads() -> Path | None:
@@ -261,11 +306,11 @@ def _choose_path() -> Path:
         return candidate
 
 
-def _preview_path(path: Path):
+def _preview_path(path: Path, *, date_mode: DateMode = DateMode.NONE):
     typer.echo("")
     print_status("info", f"Preview de carpeta seleccionada: {path}")
     scan = scan_root(path)
-    plan = build_plan(scan)
+    plan = build_plan(scan, date_mode=date_mode)
     print_preview(scan, plan)
     return scan, plan
 
